@@ -216,7 +216,7 @@ resources:
 - name: builder-src
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-alicloud-light-stemcell-builder
+    uri: https://github.com/cloudfoundry-incubator/bosh-alicloud-light-stemcell-builder
     branch: dev
 
 - name: ubuntu-xenial-stemcell
