@@ -1,0 +1,26 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source: {repository: boshcpi/light-stemcell-builder}
+
+inputs:
+  - name: light-stemcell
+  - name: builder-src
+  - name: stemcells-index
+  - name: aliyun-cli
+  - name: notification
+
+outputs:
+  - name: stemcells-index-output
+  - name: notification
+
+run:
+  path: builder-src/ci/tasks/publish-stemcell-and-checksum.sh
+
+params:
+  ALICLOUD_ACCESS_KEY_ID:     ""
+  ALICLOUD_SECRET_ACCESS_KEY: ""
+  bosh_io_bucket_name:        "bosh-alicloud-light-stemcells"
+  bosh_io_bucket_region:      "eu-central-1"

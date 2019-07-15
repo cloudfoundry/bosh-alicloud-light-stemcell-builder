@@ -1,0 +1,296 @@
+---
+groups:
+- name: all-alicloud
+  jobs:
+  - ubuntu-xenial-stemcell
+
+shared:
+- &put-stemcells-index
+  put: stemcells-index
+  params:
+    repository: stemcells-index-output
+    rebase: true
+  on_success:
+    put: notify
+    params:
+      text_file: notification/success
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &get-stemcell
+  get: input-stemcell
+  version: every
+  trigger: true
+  params:
+    preserve_filename: true
+
+- &get-builder-src
+  get: builder-src
+  resource: builder-src
+
+- &get-aliyun-cli
+  get: aliyun-cli
+  resource: aliyun-cli
+
+- &create-light-stemcell
+  task: build-stemcell
+  file: builder-src/ci/tasks/build.yml
+  input_mapping:
+    input-stemcell: input-stemcell
+    builder-src: builder-src
+    aliyun-cli: aliyun-cli
+  output_mapping:
+    light-stemcell: light-stemcell
+    notification: notification
+  params:
+    image_description: ((create_stemcell_description))
+    image_region: ((create_stemcell_region))
+    image_access_key: ((create_stemcell_access_key))
+    image_secret_key: ((create_stemcell_secret_key))
+    image_bucket_name: ((create_stemcell_bucket))
+  on_success:
+    put: notify
+    params:
+      text_file: notification/success
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &get-test-resources
+  aggregate:
+  - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
+  - {get: cpi-release,     trigger: false, resource: bosh-cpi-dev-artifacts}
+  - {get: bosh-release,    trigger: false, resource: precompiled-bosh-release}
+  - {get: bosh-deployment, trigger: false}
+  - {get: bosh-cli,        trigger: false}
+  - {get: jq-blob,         trigger: false}
+  - {get: pipelines,       trigger: false}
+
+- &prepare-director
+  task: prepare-director
+  file: pipelines/shared/tasks/prepare-director.yml
+  params: &prepare-director-params
+    INFRASTRUCTURE:             alicloud
+    DIRECTOR_VARS_FILE:         {{alicloud_bosh_director_vars_file}}
+    OPTIONAL_OPS_FILE:  |
+      -o pipelines/shared/assets/ops/remove-hm.yml
+      -o bosh-deployment/external-ip-with-registry-not-recommended.yml
+      -o pipelines/shared/assets/ops/remove-provider-cert.yml
+  input_mapping:
+    stemcell: light-stemcell
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &deploy-director
+  task: deploy-director
+  file: pipelines/shared/tasks/deploy-director.yml
+  input_mapping:
+    stemcell: light-stemcell
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &ensure-terminated
+  task: ensure-terminated
+  file: bosh-cpi-src/ci/tasks/ensure-terminated.yml
+  params:
+    ALICLOUD_ACCESS_KEY_ID:     {{alicloud_access_key__primary}}
+    ALICLOUD_ACCESS_KEY_SECRET: {{alicloud_secret_key__primary}}
+    ALICLOUD_DEFAULT_REGION:    {{alicloud_region__primary}}
+- &teardown
+  task: teardown
+  file: pipelines/shared/tasks/teardown.yml
+- &run-upload-test
+  task: run-stemcell-upload-tests
+  file: builder-src/ci/tasks/run-upload-test.yml
+  input_mapping:
+    stemcell: light-stemcell
+    builder-src: builder-src
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+- &put-environment
+  task: put-environment
+  file: bosh-cpi-src/ci/tasks/put-environment.yml
+  params: &put-environment-params
+    access_key: {{alicloud_access_key__primary}}
+    secret_key: {{alicloud_secret_key__primary}}
+    region:     {{alicloud_region__primary}}
+    remote_state_access_key: {{terraform_backend_access_key}}
+    remote_state_secret_key: {{terraform_backend_secret_key}}
+    remote_state_bucket:     {{terraform_backend_bucket}}
+    remote_state_region:     {{terraform_backend_region}}
+    remote_state_file_path:  "bosh-alicloud-light-stemcell-state"
+    public_key: ((PUBLIC_KEY))
+    terraform_source: bosh-cpi-src/ci/assets/terraform
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &publish-stemcell-and-checksum
+  task: publish-stemcell-and-checksum
+  file: builder-src/ci/tasks/publish-stemcell-and-checksum.yml
+  input_mapping:
+    builder-src: builder-src
+    light-stemcell: light-stemcell
+  params:
+    ALICLOUD_ACCESS_KEY_ID: ((alicloud_publish_light_stemcells_access_key_id))
+    ALICLOUD_SECRET_ACCESS_KEY: ((alicloud_publish_light_stemcells_secret_access_key))
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+- &ensure-light-stemcell-ready
+  task: ensure-light-stemcell-ready
+  file: builder-src/ci/tasks/ensure-stemcell-ready.yml
+  input_mapping:
+    input-stemcell: input-stemcell
+    notification: notification
+    builder-src: builder-src
+    aliyun-cli: aliyun-cli
+  params:
+    image_access_key: ((alicloud_access_key__primary))
+    image_secret_key: ((alicloud_secret_key__primary))
+    image_region: ((alicloud_region__primary))
+  on_failure:
+    put: notify
+    params:
+      text_file: notification/failed
+
+jobs:
+- name: ubuntu-xenial-stemcell
+  serial: true
+  plan:
+  - aggregate:
+#   get heavy stemcell
+    - <<: *get-stemcell
+      resource: ubuntu-xenial-stemcell
+#   get this builder repo
+    - *get-builder-src
+    - *get-aliyun-cli
+  - *create-light-stemcell
+# deploy bosh director and validate the light stemcell
+  - *ensure-light-stemcell-ready
+  - do:
+    - *get-test-resources
+    - <<: *put-environment
+      params:
+        <<: *put-environment-params
+        env_name: ubuntu-xenial-stemcell
+        delete_on_failure: true
+    - *prepare-director
+    - *deploy-director
+#    run bosh upload-stemcells xxx
+    - *run-upload-test
+    ensure:
+      do:
+#      - *teardown
+      - *ensure-terminated
+      - <<: *put-environment
+        params:
+          <<: *put-environment-params
+          env_name: ubuntu-xenial-stemcell
+          generate_random_name: true
+          action: destroy
+  - get: stemcells-index
+  - *publish-stemcell-and-checksum
+  - *put-stemcells-index
+
+resources:
+- name: stemcells-index
+  type: git
+  source:
+    uri: git@github.com:cloudfoundry-incubator/stemcells-alicloud-index.git
+    branch: master
+    private_key: ((stemcells_index__github_key))
+
+- name: builder-src
+  type: git
+  source:
+    uri: https://github.com/aliyun/bosh-alicloud-light-stemcell-builder
+    branch: dev
+
+- name: ubuntu-xenial-stemcell
+  type: bosh-io-stemcell
+  source:
+    name: bosh-alicloud-kvm-ubuntu-xenial-go_agent
+    force_regular: true
+
+- name: aliyun-cli
+  type: github-release
+  source:
+    owner: aliyun
+    repository: aliyun-cli
+    insecure: true
+
+- name: pipelines
+  type: git
+  source:
+    uri: https://github.com/aliyun/bosh-cpi-certification
+    branch: xiaozhu
+
+- name: bosh-cpi-src-in
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry-incubator/bosh-alicloud-cpi-release.git
+    branch: master
+    paths:
+      - ci/**
+
+- name: bosh-cpi-dev-artifacts
+  type: s3
+  source:
+    regexp: bosh-alicloud-cpi-(\d+\.\d+\.\d+)\.tgz
+    bucket: {{alicloud_cpi_pipeline_bucket}}
+    region_name: {{alicloud_cpi_pipeline_bucket_region}}
+    access_key_id: {{alicloud_access_key__primary}}
+    secret_access_key: {{alicloud_secret_key__primary}}
+    endpoint:          oss-((alicloud_cpi_pipeline_bucket_region)).aliyuncs.com
+- name: bosh-deployment
+  type: git
+  source:
+    uri: https://github.com/aliyun/bosh-deployment
+    branch: dev
+- name: precompiled-bosh-release
+  type: s3
+  source:
+    bucket: bosh-compiled-release-tarballs
+    regexp: bosh-(\d+.\d+.\d+)-ubuntu-xenial-(250.\d+).*.tgz
+- name: bosh-cli
+  type: s3
+  source:
+    regexp: bosh-cli-([0-9.]+)-linux-amd64
+    cloudfront_url: https://dulfnruy35dwq.cloudfront.net
+    bucket: bosh-cli-artifacts
+    region_name: us-east-1
+- name: jq-blob
+  type: git
+  source:
+    uri: https://github.com/archieves/jq-blob
+- name: notify
+  type: slack-notification
+  source:
+    url: ((slack-webhook))
+
+resource_types:
+- name: metalink-repository
+  type: docker-image
+  source:
+    repository: dpb587/metalink-repository-resource
+- name: terraform_type
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
