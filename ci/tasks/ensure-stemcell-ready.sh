@@ -43,13 +43,14 @@ do
                 --Status Waiting,Creating,Available
                 )"
         imageId=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].ImageId')
-        if [[ ${imageId} = "m-"* ]]; then
-            echo "Found in the region $regionId. The image id is $imageId."
+        isShared=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].IsSelfShared')
+        if [[ ${isShared} = "True" ]]; then
+            echo "[$regionId Success] The image $imageId has been shared."
             success=true
         else
             success=false
             sleep 10
-            echo -e "Cannot find the stemcell ${original_stemcell_name} in the region ${regionId}. Got the image id is $imageId. Continue..."
+            echo -e "[$regionId Failed] The image $imageId has not been shared. Continue......"
             break
         fi
     done

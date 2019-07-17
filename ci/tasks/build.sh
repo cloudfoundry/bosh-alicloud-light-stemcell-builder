@@ -123,7 +123,9 @@ base_image_id="$( echo $ImportImageResponse | jq -r '.ImageId' )"
 echo -e "ImportImage in the base region $image_region successfully and the base image id is $base_image_id."
 
 echo -e "Waiting for image $base_image_id is Available..."
-timeout=1200
+# Before polling, delay 4 min
+sleep 240
+timeout=1800
 while [ $timeout -gt 0 ]
 do
     DescribeImagesResponse="$(aliyun ecs DescribeImages \
@@ -149,10 +151,9 @@ echo -e "An image $base_image_id has been created in ${image_region} successfull
 
 # Write the success message
 echo -e "[bosh-alicloud-light-stemcell-builder In Progress]\nThe following custom images need to be shared with all of Alibaba Cloud Accounts:" > ${success_message}
-echo -e "    Region               ImageId" >> ${success_message}
 
 echo "  image_id:" >> ${stemcell_manifest}
-
+unset imageIds
 for regionId in ${image_destinations[*]}
 do
     if [[ $regionId == ${image_region} ]]; then
@@ -174,8 +175,9 @@ do
         echo -e "CopyImage to $regionId and target image ID is $image_id."
     fi
     echo "    $regionId: $image_id" >> ${stemcell_manifest}
-    echo "$image_id" >> ${success_message}
+    imageIds+=("\"$image_id\"")
 done
+( IFS=$',\n'; echo "${imageIds[*]}" ) >> ${success_message}
 
 pushd ${extracted_stemcell_dir}
   > image
