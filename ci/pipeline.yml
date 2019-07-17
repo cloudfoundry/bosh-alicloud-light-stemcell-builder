@@ -50,6 +50,7 @@ shared:
     image_access_key: ((create_stemcell_access_key))
     image_secret_key: ((create_stemcell_secret_key))
     image_bucket_name: ((create_stemcell_bucket))
+#    image_destinations: eu-central-1 cn-hangzhou cn-shanghai
   on_success:
     put: notify
     params:
@@ -158,9 +159,10 @@ shared:
     builder-src: builder-src
     aliyun-cli: aliyun-cli
   params:
-    image_access_key: ((alicloud_access_key__primary))
-    image_secret_key: ((alicloud_secret_key__primary))
-    image_region: ((alicloud_region__primary))
+    image_access_key: ((create_stemcell_access_key))
+    image_secret_key: ((create_stemcell_secret_key))
+    image_region: ((create_stemcell_region))
+#    image_destinations: eu-central-1 cn-hangzhou cn-shanghai
   on_failure:
     put: notify
     params:
@@ -217,7 +219,7 @@ resources:
   type: git
   source:
     uri: https://github.com/cloudfoundry-incubator/bosh-alicloud-light-stemcell-builder
-    branch: dev
+    branch: master
 
 - name: ubuntu-xenial-stemcell
   type: bosh-io-stemcell
