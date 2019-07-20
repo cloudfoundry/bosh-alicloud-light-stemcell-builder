@@ -261,7 +261,7 @@ resources:
   type: git
   source:
     uri: https://github.com/aliyun/bosh-deployment
-    branch: dev
+    branch: master
 - name: precompiled-bosh-release
   type: s3
   source:
