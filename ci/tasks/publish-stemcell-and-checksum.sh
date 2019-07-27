@@ -46,11 +46,11 @@ pushd stemcells-index-output > /dev/null
 popd > /dev/null
 
 echo "Uploading light stemcell ${light_stemcell_name} to ${bosh_io_bucket_name_cn}..."
-aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_cn}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_cn}
+aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_cn}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_cn} --force
 aliyun oss set-acl "oss://${bosh_io_bucket_name_cn}/${light_stemcell_name}" public-read --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_cn}
 
 echo "Uploading light stemcell ${light_stemcell_name} to ${bosh_io_bucket_name_eu}..."
-aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_eu}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_eu}
+aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_eu}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_eu} --force
 aliyun oss set-acl "oss://${bosh_io_bucket_name_eu}/${light_stemcell_name}" public-read --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_eu}
 
 echo "Stemcell metalink"
