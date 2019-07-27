@@ -16,11 +16,11 @@ outputs:
 run:
   path: builder-src/ci/tasks/build.sh
 params:
-  bosh_io_bucket_name:        "bosh-alicloud-light-stemcells"
-  bosh_io_bucket_region:      "eu-central-1"
-  image_description:            ""
-  image_region:                 ""
-  image_access_key:             ""
-  image_secret_key:             ""
-  image_bucket_name:            "bosh-alicloud-light-stemcells"
-  image_destinations:           ""
+  bosh_io_bucket_name:   "bosh-alicloud-light-stemcells-eu"
+  bosh_io_bucket_region: "eu-central-1"
+  image_description:     ""
+  image_region:          ""
+  image_access_key:      ""
+  image_secret_key:      ""
+  image_bucket_name:     "bosh-alicloud-light-stemcells-eu"
+  image_destinations:    ""

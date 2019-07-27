@@ -22,5 +22,8 @@ run:
 params:
   ALICLOUD_ACCESS_KEY_ID:     ""
   ALICLOUD_SECRET_ACCESS_KEY: ""
-  bosh_io_bucket_name:        "bosh-alicloud-light-stemcells"
-  bosh_io_bucket_region:      "eu-central-1"
+  bosh_io_bucket_name_cn:     "bosh-alicloud-light-stemcells-cn"
+  bosh_io_bucket_region_cn:   "cn-hangzhou"
+  bosh_io_bucket_name_eu:     "bosh-alicloud-light-stemcells-eu"
+  bosh_io_bucket_region_eu:   "eu-central-1"
+

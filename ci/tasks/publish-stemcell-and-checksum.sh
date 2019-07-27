@@ -4,8 +4,10 @@ set -eu
 
 : ${ALICLOUD_ACCESS_KEY_ID:?}
 : ${ALICLOUD_SECRET_ACCESS_KEY:?}
-: ${bosh_io_bucket_region:?}
-: ${bosh_io_bucket_name:?}
+: ${bosh_io_bucket_name_cn:?}
+: ${bosh_io_bucket_region_cn:?}
+: ${bosh_io_bucket_name_eu:?}
+: ${bosh_io_bucket_region_eu:?}
 
 my_dir="$( cd $(dirname $0) && pwd )"
 release_dir="$( cd ${my_dir} && cd ../.. && pwd )"
@@ -34,7 +36,8 @@ mkdir -p "$(dirname "${meta4_path}")"
 meta4 create --metalink="$meta4_path"
 
 meta4 import-file --metalink="$meta4_path" --version="$STEMCELL_VERSION" "light-stemcell/${light_stemcell_name}"
-meta4 file-set-url --metalink="$meta4_path" --file="${light_stemcell_name}" "https://$bosh_io_bucket_name.oss-$bosh_io_bucket_region.aliyuncs.com/$light_stemcell_name"
+meta4 file-set-url --location="cn" --priority="1" --metalink="$meta4_path" --file="${light_stemcell_name}" "https://$bosh_io_bucket_name_cn.oss-$bosh_io_bucket_region_cn.aliyuncs.com/$light_stemcell_name"
+meta4 file-set-url --location="eu" --priority="1" --metalink="$meta4_path" --file="${light_stemcell_name}" "https://$bosh_io_bucket_name_eu.oss-$bosh_io_bucket_region_eu.aliyuncs.com/$light_stemcell_name"
 
 pushd stemcells-index-output > /dev/null
   git add -A
@@ -42,9 +45,13 @@ pushd stemcells-index-output > /dev/null
     commit -m "publish: $OS_NAME/$STEMCELL_VERSION"
 popd > /dev/null
 
-echo "Uploading light stemcell ${light_stemcell_name} to ${bosh_io_bucket_name}..."
-aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region}
-aliyun oss set-acl "oss://${bosh_io_bucket_name}/${light_stemcell_name}" public-read --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region}
+echo "Uploading light stemcell ${light_stemcell_name} to ${bosh_io_bucket_name_cn}..."
+aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_cn}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_cn}
+aliyun oss set-acl "oss://${bosh_io_bucket_name_cn}/${light_stemcell_name}" public-read --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_cn}
+
+echo "Uploading light stemcell ${light_stemcell_name} to ${bosh_io_bucket_name_eu}..."
+aliyun oss cp "${light_stemcell_path}" "oss://${bosh_io_bucket_name_eu}/${light_stemcell_name}" --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_eu}
+aliyun oss set-acl "oss://${bosh_io_bucket_name_eu}/${light_stemcell_name}" public-read --access-key-id ${ALICLOUD_ACCESS_KEY_ID} --access-key-secret ${ALICLOUD_SECRET_ACCESS_KEY} --region ${bosh_io_bucket_region_eu}
 
 echo "Stemcell metalink"
 cat "$meta4_path"
