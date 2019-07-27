@@ -10,7 +10,6 @@ inputs:
   - name: builder-src
   - name: stemcells-index
   - name: aliyun-cli
-  - name: notification
 
 outputs:
   - name: stemcells-index-output
