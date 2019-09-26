@@ -2,9 +2,10 @@
 groups:
 - name: all-alicloud
   jobs:
-  - build-ubuntu-xenial-stemcell
+  - build-ubuntu-light-stemcell
   - run-upload-test
-  - bats
+  - bats-ubuntu-light-stemcell
+  - test-ubuntu-light-stemcell
   - publish-light-stemcell
 
 shared:
@@ -162,8 +163,30 @@ shared:
     params:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning the task run-bats failed. Please check it."
 
+- &test-stemcell-ubuntu-xenial
+  task: test-stemcell-ubuntu-xenial
+  file: pipelines/shared/tasks/test-stemcell.yml
+  params:
+    BOSH_os_name: ubuntu-xenial
+    package: ipv4director
+  on_failure:
+    put: notify
+    params:
+      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-xenial failed. Please check it."
+
+- &update-cloud-config
+  task: update-cloud-config
+  file: pipelines/shared/tasks/update-cloud-config.yml
+  params: &update-cloud-config-params
+    INFRASTRUCTURE: alicloud
+    DIRECTOR_VARS_FILE: {{alicloud_bosh_director_vars_file}}
+  on_failure:
+    put: notify
+    params:
+      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task update-cloud-config failed. Please check it."
+
 jobs:
-- name: build-ubuntu-xenial-stemcell
+- name: build-ubuntu-light-stemcell
   serial: true
   plan:
   - aggregate:
@@ -173,7 +196,7 @@ jobs:
   - *create-light-stemcell
 # deploy bosh director and validate the light stemcell
   - *ensure-light-stemcell-ready
-  - put: ubuntu-xenial-light-stemcell
+  - put: ubuntu-light-stemcell
     params: {file: light-stemcell/*.tgz}
 
 - name: run-upload-test
@@ -183,8 +206,8 @@ jobs:
     - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
     - {get: builder-src,     trigger: false, resource: builder-src}
     - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
-    - {get: bosh-release,    trigger: false, resource: precompiled-bosh-release}
-    - {get: stemcell,        trigger: true, resource: ubuntu-xenial-light-stemcell, passed: [build-ubuntu-xenial-stemcell]}
+    - {get: bosh-release,    trigger: false, resource: bosh-release}
+    - {get: stemcell,        trigger: true, resource: ubuntu-light-stemcell, passed: [build-ubuntu-light-stemcell]}
     - {get: bosh-deployment, trigger: false}
     - {get: bosh-cli,        trigger: false}
     - {get: jq-blob,         trigger: false}
@@ -211,14 +234,14 @@ jobs:
           generate_random_name: true
           action: destroy
 
-- name: bats
+- name: bats-ubuntu-light-stemcell
   serial: true
   plan:
   - aggregate:
-    - {get: cpi-release,     trigger: false,  resource: bosh-cpi-release}
-    - {get: bosh-release,    trigger: false, resource: precompiled-bosh-release}
+    - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
+    - {get: bosh-release,    trigger: false, resource: bosh-release}
     - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
-    - {get: stemcell,        trigger: true, resource: ubuntu-xenial-light-stemcell, passed: [build-ubuntu-xenial-stemcell]}
+    - {get: stemcell,        trigger: true,  resource: ubuntu-light-stemcell, passed: [build-ubuntu-light-stemcell]}
     - {get: bosh-deployment, trigger: false}
     - {get: pipelines,       trigger: false}
     - {get: bosh-cli,        trigger: false}
@@ -255,11 +278,54 @@ jobs:
             action: destroy
             terraform_source: bosh-cpi-src/ci/assets/terraform
 
+- name: test-ubuntu-light-stemcell
+  serial: true
+  plan:
+    - aggregate:
+      - {get: bosh-release,                trigger: false}
+      - {get: bosh-cpi-src,                trigger: false, resource: bosh-cpi-src-in}
+      - {get: cpi-release,                 trigger: false, resource: bosh-cpi-release}
+      - {get: stemcell,                    trigger: true,  resource: ubuntu-light-stemcell, passed: [build-ubuntu-light-stemcell]}
+      - {get: pipelines,                   trigger: false}
+      - {get: bosh-cli,                    trigger: false}
+      - {get: bats,                        trigger: false}
+      - {get: bosh-deployment,             trigger: false}
+      - {get: syslog-release,              trigger: false}
+      - {get: os-conf-release,             trigger: false}
+      - {get: bosh-linux-stemcell-builder, trigger: false}
+    - <<: *put-environment
+      params:
+        <<: *put-environment-params
+        env_name: alicloud-test-stemcell-ubuntu-xenial
+        delete_on_failure: true
+    - do:
+      - <<: *prepare-director
+        params:
+          <<: *prepare-director-params
+          OPTIONAL_OPS_FILE: |
+            -o pipelines/shared/assets/ops/remove-hm.yml
+            -o bosh-deployment/external-ip-with-registry-not-recommended.yml
+            -o pipelines/shared/assets/ops/remove-provider-cert.yml
+      - do:
+        - <<: *deploy-director
+        - <<: *update-cloud-config
+        - <<: *test-stemcell-ubuntu-xenial
+        ensure:
+          do:
+            - <<: *teardown
+      ensure:
+        do:
+          - <<: *put-environment
+            params:
+              <<: *put-environment-params
+              env_name: alicloud-test-stemcell-ubuntu-xenial
+              action: destroy
+
 - name: publish-light-stemcell
   serial: true
   plan:
   - aggregate:
-    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-test, bats]}
+    - {get: stemcell,    trigger: true,  resource: ubuntu-light-stemcell, passed: [run-upload-test, bats-ubuntu-light-stemcell, test-ubuntu-light-stemcell]}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
     - {get: stemcells-index}
@@ -286,7 +352,7 @@ resources:
     name: bosh-alicloud-kvm-ubuntu-xenial-go_agent
     force_regular: true
 
-- name: ubuntu-xenial-light-stemcell
+- name: ubuntu-light-stemcell
   type: s3
   source:
     regexp:            light-bosh-stemcell-(\d+\.\d+)-alicloud-kvm-ubuntu-xenial-go_agent.tgz
@@ -297,20 +363,17 @@ resources:
     endpoint:          oss-eu-central-1.aliyuncs.com
 
 - name: aliyun-cli
-  type: s3
+  type: github-release
   source:
-    regexp:            aliyun-cli-linux-3.0.(\d+)-amd64.tgz
-    bucket:            {{aliyun_cli_bucket}}
-    region:            {{aliyun_cli_region}}
-    access_key_id:     {{aliyun_cli_access_key}}
-    secret_access_key: {{aliyun_cli_secret_key}}
-    endpoint:          oss-((aliyun_cli_region)).aliyuncs.com
+    owner: aliyun
+    repository: aliyun-cli
+    insecure: true
 
 - name: pipelines
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-cpi-certification
-    branch: xiaozhu
+    uri: https://github.com/cloudfoundry-incubator/bosh-cpi-certification
+    branch: master
 
 - name: bosh-cpi-src-in
   type: git
@@ -330,13 +393,12 @@ resources:
 - name: bosh-deployment
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-deployment
+    uri: https://github.com/cloudfoundry/bosh-deployment
     branch: master
-- name: precompiled-bosh-release
-  type: s3
+- name: bosh-release
+  type: bosh-io-release
   source:
-    bucket: bosh-compiled-release-tarballs
-    regexp: bosh-(\d+.\d+.\d+)-ubuntu-xenial-(250.\d+).*.tgz
+    repository: cloudfoundry/bosh
 - name: bosh-cli
   type: s3
   source:
@@ -351,12 +413,25 @@ resources:
 - name: bats
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-acceptance-tests.git
-    branch: alicloud
+    uri: https://github.com/cloudfoundry/bosh-acceptance-tests
+    branch: master
 - name: notify
   type: slack-notification
   source:
     url: ((slack-webhook))
+- name: bosh-linux-stemcell-builder
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
+    branch: master
+- name: syslog-release
+  type: bosh-io-release
+  source:
+    repository: cloudfoundry/syslog-release
+- name: os-conf-release
+  type: bosh-io-release
+  source:
+    repository: cloudfoundry/os-conf-release
 
 resource_types:
 - name: metalink-repository
