@@ -27,8 +27,7 @@ saved_image_destinations="$(echo $(aliyun ecs DescribeRegions \
 stemcell_path=${PWD}/input-stemcell/*.tgz
 original_stemcell_name="$(basename ${stemcell_path})"
 
-echo -e "Checking image ${original_stemcell_name} is ready..."
-sleep 5m
+echo -e "Checking image ${original_stemcell_name} is shared..."
 success=false
 while [[ ${success} = false ]]
 do

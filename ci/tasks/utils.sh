@@ -33,7 +33,7 @@ cleanup_previous_image() {
     TotalTargetImage=$(echo ${DescribeImagesResponse} | jq -r '.TotalCount')
     if [[ ${TotalTargetImage} > "0" ]]; then
         TargetImage=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].ImageId')
-        echo "Remove the existed image $original_stemcell_name ..."
+        echo "Remove the existed in ${regionId} image $original_stemcell_name ..."
         DeleteImageResponse="$(aliyun ecs DeleteImage \
             --access-key-id ${image_access_key} \
             --access-key-secret ${image_secret_key} \
@@ -43,5 +43,6 @@ cleanup_previous_image() {
             --Force true
             )"
         echo -e "DeleteImage $TargetImage Response: $DeleteImageResponse"
+        sleep 5
     fi
 }
