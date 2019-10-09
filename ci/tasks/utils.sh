@@ -23,7 +23,7 @@ cleanup_previous_image() {
             --region $3 \
             --RegionId $3 \
             --ImageName $4 \
-            --Status Waiting,Creating,Available,UnAvailable,CreateFailed
+            --Status Waiting,Creating,Available,UnAvailable,CreateFailed \
             --ImageOwnerAlias self
             )"
     TotalTargetImage=$(echo ${DescribeImagesResponse} | jq -r '.TotalCount')
