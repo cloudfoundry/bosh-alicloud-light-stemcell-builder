@@ -102,7 +102,7 @@ fi
 [[ "${manifest_contents}" =~ ${architecture_regex} ]]
 architecture="${BASH_REMATCH[1]}"
 
-cleanup_previous_image ${image_access_key} ${image_secret_key} ${regionId} ${original_stemcell_name}
+cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} ${original_stemcell_name}
 
 echo -e "Uploading raw image ${stemcell_image_name} to ${image_region} bucket ${image_bucket_name}..."
 aliyun oss cp ${stemcell_image} oss://${image_bucket_name}/${stemcell_image_name} -f --access-key-id ${image_access_key} --access-key-secret ${image_secret_key} --region ${image_region}
