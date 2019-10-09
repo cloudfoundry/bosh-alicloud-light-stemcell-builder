@@ -14,3 +14,30 @@ configure_aliyun_cli() {
   fi
 }
 configure_aliyun_cli
+
+# cleanup the failed image
+cleanup_previous_image() {
+    DescribeImagesResponse="$(aliyun ecs DescribeImages \
+            --access-key-id $1  \
+            --access-key-secret $2 \
+            --region $3 \
+            --RegionId $3 \
+            --ImageName $4 \
+            --Status Waiting,Creating,Available,UnAvailable,CreateFailed
+            --ImageOwnerAlias self
+            )"
+    TotalTargetImage=$(echo ${DescribeImagesResponse} | jq -r '.TotalCount')
+    if [[ ${TotalTargetImage} -gt 0 ]]; then
+        TargetImage=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].ImageId')
+        echo "Remove the existed image $original_stemcell_name ..."
+        DeleteImageResponse="$(aliyun ecs DeleteImage \
+            --access-key-id $1 \
+            --access-key-secret $2 \
+            --region $3 \
+            --RegionId $3 \
+            --ImageId ${TargetImage} \
+            --Force true
+            )"
+        echo -e "DeleteImage $TargetImage Response: $DeleteImageResponse"
+    fi
+}

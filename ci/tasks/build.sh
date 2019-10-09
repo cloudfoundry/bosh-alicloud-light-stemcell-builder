@@ -102,6 +102,8 @@ fi
 [[ "${manifest_contents}" =~ ${architecture_regex} ]]
 architecture="${BASH_REMATCH[1]}"
 
+cleanup_previous_image ${image_access_key} ${image_secret_key} ${regionId} ${original_stemcell_name}
+
 echo -e "Uploading raw image ${stemcell_image_name} to ${image_region} bucket ${image_bucket_name}..."
 aliyun oss cp ${stemcell_image} oss://${image_bucket_name}/${stemcell_image_name} -f --access-key-id ${image_access_key} --access-key-secret ${image_secret_key} --region ${image_region}
 
@@ -119,6 +121,7 @@ ImportImageResponse="$(aliyun ecs ImportImage \
     --Description "${image_description}"
     )"
 
+echo -e "ImportImage $original_stemcell_name Response: $ImportImageResponse"
 base_image_id="$( echo $ImportImageResponse | jq -r '.ImageId' )"
 echo -e "ImportImage in the base region $image_region successfully and the base image id is $base_image_id."
 
@@ -159,6 +162,9 @@ do
     if [[ $regionId == ${image_region} ]]; then
         image_id=$base_image_id
     else
+
+        cleanup_previous_image ${image_access_key} ${image_secret_key} ${regionId} ${original_stemcell_name}
+
         CopyImageResponse="$(aliyun ecs CopyImage \
             --access-key-id ${image_access_key}  \
             --access-key-secret ${image_secret_key} \
@@ -171,8 +177,8 @@ do
             --Tag.1.Key CopyFrom \
             --Tag.1.Value $base_image_id
             )"
+        echo -e "CopyImage to $regionId Response: $CopyImageResponse"
         image_id="$(echo $CopyImageResponse | jq -r '.ImageId' )"
-        echo -e "CopyImage to $regionId and target image ID is $image_id."
     fi
     echo "    $regionId: $image_id" >> ${stemcell_manifest}
     imageIds+=("\"$image_id\"")
