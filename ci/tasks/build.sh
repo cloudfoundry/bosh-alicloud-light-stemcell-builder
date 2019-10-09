@@ -137,9 +137,9 @@ do
             --region ${image_region} \
             --RegionId ${image_region} \
             --ImageId $base_image_id \
-            --Status Waiting,Creating,Available,UnAvailable,CreateFailed
+            --Status Available
             )"
-    if [[ `echo $DescribeImagesResponse | jq -r '.Images.Image[0].Status'` != "Available" ]]; then
+    if [[ `echo $DescribeImagesResponse | jq -r '.TotalCount'` != "1" ]]; then
         sleep 5
         timeout=$((${timeout}-5))
     else
@@ -183,6 +183,35 @@ do
     echo "    $regionId: $image_id" >> ${stemcell_manifest}
     imageIds+=("\"$image_id\"")
 done
+
+echo -e "Waiting for image ${original_stemcell_name} is available..."
+sleep 5m
+success=false
+while [[ ${success} = false ]]
+do
+    for regionId in ${image_destinations[*]}
+    do
+        DescribeImagesResponse="$(aliyun ecs DescribeImages \
+                --access-key-id ${image_access_key}  \
+                --access-key-secret ${image_secret_key} \
+                --region ${regionId} \
+                --RegionId ${regionId} \
+                --ImageName ${original_stemcell_name} \
+                --Status Available
+                )"
+        imageTotal=$(echo ${DescribeImagesResponse} | jq -r '.TotalCount')
+        if [[ ${imageTotal} = "1" ]]; then
+            echo "[$regionId Success] The image $original_stemcell_name has been Available."
+            success=true
+        else
+            success=false
+            sleep 10
+            echo -e "[$regionId Failed] The image $original_stemcell_name has not been Available. Continue......"
+            break
+        fi
+    done
+done
+
 ( IFS=$',\n'; echo "${imageIds[*]}" ) >> ${success_message}
 
 pushd ${extracted_stemcell_dir}
