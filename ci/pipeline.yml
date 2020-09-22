@@ -39,7 +39,7 @@ shared:
     image_access_key: ((create_stemcell_access_key))
     image_secret_key: ((create_stemcell_secret_key))
     image_bucket_name: ((create_stemcell_bucket))
-#    image_destinations: eu-central-1 cn-hangzhou cn-shanghai
+    image_destinations: ((create_stemcell_image_destinations))
   on_success:
     put: notify
     params:
