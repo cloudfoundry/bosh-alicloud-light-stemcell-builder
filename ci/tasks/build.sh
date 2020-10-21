@@ -107,10 +107,11 @@ cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} $
 echo -e "Uploading raw image ${stemcell_image_name} to ${image_region} bucket ${image_bucket_name}..."
 aliyun oss cp ${stemcell_image} oss://${image_bucket_name}/${stemcell_image_name} -f --access-key-id ${image_access_key} --access-key-secret ${image_secret_key} --region ${image_region}
 
-ImportImageResponse="$(aliyun ecs ImportImage \
+aliyun ecs ImportImage \
     --access-key-id ${image_access_key} \
     --access-key-secret ${image_secret_key} \
     --region ${image_region} \
+    --RegionId ${image_region} \
     --Platform $os_distro \
     --DiskDeviceMapping.1.OSSBucket ${image_bucket_name} \
     --DiskDeviceMapping.1.OSSObject ${stemcell_image_name} \
@@ -119,10 +120,20 @@ ImportImageResponse="$(aliyun ecs ImportImage \
     --Architecture $architecture \
     --ImageName $original_stemcell_name \
     --Description "${image_description}"
+
+sleep 5
+
+DescribeImagesResponse="$(aliyun ecs DescribeImages \
+    --access-key-id ${image_access_key} \
+    --access-key-secret ${image_secret_key} \
+    --region ${image_region} \
+    --RegionId ${image_region} \
+    --ImageName $original_stemcell_name \
+    --Status Waiting,Creating
     )"
 
-echo -e "ImportImage $original_stemcell_name Response: $ImportImageResponse"
-base_image_id="$( echo $ImportImageResponse | jq -r '.ImageId' )"
+echo -e "DescribeImages $original_stemcell_name Response: $DescribeImagesResponse"
+base_image_id="$( echo $DescribeImagesResponse | jq -r '.Images.Image[0].ImageId' )"
 echo -e "ImportImage in the base region $image_region successfully and the base image id is $base_image_id."
 
 echo -e "Waiting for image $base_image_id is Available..."
