@@ -7,7 +7,6 @@
 *#
 #*
 *.bk
-*.bak
 
 .blobs
 .dev_builds
