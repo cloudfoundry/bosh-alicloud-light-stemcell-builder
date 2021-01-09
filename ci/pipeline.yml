@@ -191,6 +191,8 @@ shared:
     BAT_INFRASTRUCTURE: alicloud
     BAT_NETWORKING:     manual
     BAT_RSPEC_FLAGS:    "--tag ~raw_ephemeral_storage --tag ~persistent_disk"
+  #    BAT_RSPEC_FLAGS:    "--tag ~raw_ephemeral_storage --tag ~persistent_disk --tag ~multiple_manual_networks"
+
   on_failure:
     put: notify
     params:
@@ -474,7 +476,7 @@ jobs:
       - {get: bosh-deployment,             trigger: false}
       - {get: syslog-release,              trigger: false}
       - {get: os-conf-release,             trigger: false}
-      - {get: bosh-linux-stemcell-builder, trigger: false}
+      - {get: bosh-linux-boinic-stemcell-builder, trigger: false}
     - <<: *put-environment
       params:
         <<: *put-environment-params
@@ -507,8 +509,8 @@ jobs:
   serial: true
   plan:
   - aggregate:
-    - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell, test-ubuntu-bionic-light-stemcell]}
-    # - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell]}
+#    - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell, test-ubuntu-bionic-light-stemcell]}
+    - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell]}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
     - {get: stemcells-index}
@@ -582,7 +584,7 @@ resources:
 - name: pipelines
   type: git
   source:
-    uri: https://github.com/cloudfoundry-incubator/bosh-cpi-certification
+    uri: https://github.com/aliyun/bosh-cpi-certification
     branch: master
 
 - name: bosh-cpi-src-in
@@ -603,7 +605,7 @@ resources:
 - name: bosh-deployment
   type: git
   source:
-    uri: https://github.com/cloudfoundry/bosh-deployment
+    uri: https://github.com/aliyun/bosh-deployment
     branch: master
 - name: bosh-release
   type: bosh-io-release
@@ -623,8 +625,8 @@ resources:
 - name: bats
   type: git
   source:
-    uri: https://github.com/cloudfoundry/bosh-acceptance-tests
-    branch: master
+    uri: https://github.com/aliyun/bosh-acceptance-tests
+    branch: alicloud
 - name: notify
   type: slack-notification
   source:
@@ -634,6 +636,13 @@ resources:
   source:
     uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
     branch: master
+
+- name: bosh-linux-boinic-stemcell-builder
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
+    branch: ubuntu-bionic/master
+
 - name: syslog-release
   type: bosh-io-release
   source:
