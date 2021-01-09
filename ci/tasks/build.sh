@@ -76,6 +76,7 @@ disk_format_regex="disk_format: ([a-z]+)"
 os_type_regex="os_type: ([a-z]+)"
 os_distro_regex="os_distro: ([a-z]+)"
 architecture_regex="architecture: ([0-9a-z_]+)"
+operating_system_regex="operating_system: ([a-z-]+)"
 
 [[ "${manifest_contents}" =~ ${disk_regex} ]]
 disk_size_gb=$(mb_to_gb "${BASH_REMATCH[1]}")
@@ -101,6 +102,13 @@ fi
 
 [[ "${manifest_contents}" =~ ${architecture_regex} ]]
 architecture="${BASH_REMATCH[1]}"
+
+[[ "${manifest_contents}" =~ ${operating_system_regex} ]]
+operating_system="${BASH_REMATCH[1]}"
+
+if [[ -n ${operating_system} ]]; then
+  stemcell_image_name=${operating_system}
+fi
 
 cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} ${original_stemcell_name}
 
