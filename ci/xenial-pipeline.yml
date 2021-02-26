@@ -3,18 +3,10 @@ groups:
 - name: xenial
   jobs:
   - build-ubuntu-xenial-light-stemcell
-  - run-upload-xenial-test-2
-  - bats-ubuntu-xenial-light-stemcell-2
-  - test-ubuntu-xenial-light-stemcell-2
+  - run-upload-xenial-test
+  - bats-ubuntu-xenial-light-stemcell
+  - test-ubuntu-xenial-light-stemcell
   - publish-xenial-light-stemcell
-
-- name: bionic
-  jobs:
-  - build-ubuntu-bionic-light-stemcell
-  - run-upload-bionic-test
-  - bats-ubuntu-bionic-light-stemcell
-  - test-ubuntu-bionic-light-stemcell
-  - publish-bionic-light-stemcell
 
 shared:
 - &put-stemcells-index
@@ -182,33 +174,6 @@ shared:
     params:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-xenial failed. Please check it."
 
-- &run-bionic-bats
-  task: run-bats
-  file: pipelines/shared/tasks/run-bats.yml
-  params:
-    INFRASTRUCTURE:     alicloud
-    STEMCELL_NAME:      bosh-alicloud-kvm-ubuntu-bionic-go_agent
-    BAT_INFRASTRUCTURE: alicloud
-    BAT_NETWORKING:     manual
-#    BAT_RSPEC_FLAGS:    "--tag ~raw_ephemeral_storage --tag ~persistent_disk"
-    BAT_RSPEC_FLAGS:    "--tag ~raw_ephemeral_storage --tag ~persistent_disk --tag ~multiple_manual_networks"
-
-  on_failure:
-    put: notify
-    params:
-      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning the task run-bats failed. Please check it."
-
-- &test-stemcell-ubuntu-bionic
-  task: test-stemcell-ubuntu-bionic
-  file: pipelines/shared/tasks/test-stemcell.yml
-  params:
-    BOSH_os_name: ubuntu-bionic
-    package: ipv4director
-  on_failure:
-    put: notify
-    params:
-      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-bionic failed. Please check it."
-
 - &update-cloud-config
   task: update-cloud-config
   file: pipelines/shared/tasks/update-cloud-config.yml
@@ -225,7 +190,7 @@ jobs:
   serial: true
   plan:
   - aggregate:
-    - {get: stemcell,    trigger: false, resource: ubuntu-xenial-stemcell, version: every, params: {preserve_filename: true}}
+    - {get: stemcell,    trigger: true, resource: ubuntu-xenial-stemcell, version: every, params: {preserve_filename: true}}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
   - *create-light-stemcell
@@ -234,7 +199,7 @@ jobs:
   - put: ubuntu-xenial-light-stemcell
     params: {file: light-stemcell/*.tgz}
 
-- name: run-upload-xenial-test-2
+- name: run-upload-xenial-test
   serial: true
   plan:
   - aggregate:
@@ -269,7 +234,7 @@ jobs:
           generate_random_name: true
           action: destroy
 
-- name: bats-ubuntu-xenial-light-stemcell-2
+- name: bats-ubuntu-xenial-light-stemcell
   serial: true
   plan:
   - aggregate:
@@ -313,7 +278,7 @@ jobs:
             action: destroy
             terraform_source: bosh-cpi-src/ci/assets/terraform
 
-- name: test-ubuntu-xenial-light-stemcell-2
+- name: test-ubuntu-xenial-light-stemcell
   serial: true
   plan:
     - aggregate:
@@ -360,163 +325,13 @@ jobs:
   serial: true
   plan:
   - aggregate:
-#    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-test, bats-ubuntu-xenial-light-stemcell-2, test-ubuntu-xenial-light-stemcell-2]}
-    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-xenial-test-2, bats-ubuntu-xenial-light-stemcell-2]}
+#    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-xenial-test, bats-ubuntu-xenial-light-stemcell, test-ubuntu-xenial-light-stemcell]}
+    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-xenial-test, bats-ubuntu-xenial-light-stemcell]}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
     - {get: stemcells-index}
   - *publish-stemcell-and-checksum
   - *put-stemcells-index
-
-
-###### start bionic
-- name: build-ubuntu-bionic-light-stemcell
-  serial: true
-  plan:
-  - aggregate:
-    - {get: stemcell,    trigger: true, resource: ubuntu-bionic-stemcell, version: every, params: {preserve_filename: true}}
-    - {get: builder-src, trigger: false, resource: builder-src}
-    - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
-  - *create-light-stemcell
-# deploy bosh director and validate the light stemcell
-  - *ensure-light-stemcell-ready
-  - put: ubuntu-bionic-light-stemcell
-    params: {file: light-stemcell/*.tgz}
-
-- name: run-upload-bionic-test
-  serial: true
-  plan:
-  - aggregate:
-    - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
-    - {get: builder-src,     trigger: false, resource: builder-src}
-    - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
-    - {get: bosh-release,    trigger: false, resource: bosh-release}
-    - {get: stemcell,        trigger: true, resource: ubuntu-bionic-light-stemcell, passed: [build-ubuntu-bionic-light-stemcell]}
-    - {get: bosh-deployment, trigger: false}
-    - {get: bosh-cli,        trigger: false}
-    - {get: jq-blob,         trigger: false}
-    - {get: pipelines,       trigger: false}
-    - {get: aliyun-cli,      trigger: false, resource: aliyun-cli}
-  - do:
-    - <<: *put-environment
-      params:
-        <<: *put-environment-params
-        env_name: ubuntu-bionic-stemcell-upload-test
-        delete_on_failure: true
-    - *prepare-director
-    - *deploy-director
-#    run bosh upload-stemcells xxx
-    - *run-upload-test
-    ensure:
-      do:
-#      - *teardown
-      - *ensure-terminated
-      - <<: *put-environment
-        params:
-          <<: *put-environment-params
-          env_name: ubuntu-bionic-stemcell-upload-test
-          generate_random_name: true
-          action: destroy
-
-- name: bats-ubuntu-bionic-light-stemcell
-  serial: true
-  plan:
-  - aggregate:
-    - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
-    - {get: bosh-release,    trigger: false, resource: bosh-release}
-    - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
-    - {get: stemcell,        trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [build-ubuntu-bionic-light-stemcell]}
-    - {get: bosh-deployment, trigger: false}
-    - {get: pipelines,       trigger: false}
-    - {get: bosh-cli,        trigger: false}
-    - {get: bats,            trigger: false}
-    - {get: jq-blob,         trigger: false}
-    - {get: aliyun-cli,      trigger: false, resource: aliyun-cli}
-  - <<: *put-environment
-    params:
-      <<: *put-environment-params
-      env_name: ubuntu-bionic-stemcell-bats
-      delete_on_failure: true
-      terraform_source: bosh-cpi-src/ci/assets/terraform
-  - do:
-    - <<: *prepare-director
-      params:
-        <<: *prepare-director-params
-        OPTIONAL_OPS_FILE:  |
-          -o pipelines/shared/assets/ops/remove-hm.yml
-          -o bosh-deployment/external-ip-with-registry-not-recommended.yml
-          -o pipelines/shared/assets/ops/remove-provider-cert.yml
-    - do:
-        - <<: *deploy-director
-        - <<: *run-bionic-bats
-      ensure:
-        do:
-          - <<: *teardown
-          - <<: *ensure-terminated
-    ensure:
-      do:
-        - <<: *put-environment
-          params:
-            <<: *put-environment-params
-            env_name: ubuntu-bionic-stemcell-bats
-            action: destroy
-            terraform_source: bosh-cpi-src/ci/assets/terraform
-
-- name: test-ubuntu-bionic-light-stemcell
-  serial: true
-  plan:
-    - aggregate:
-      - {get: bosh-release,                trigger: false}
-      - {get: bosh-cpi-src,                trigger: false, resource: bosh-cpi-src-in}
-      - {get: cpi-release,                 trigger: false, resource: bosh-cpi-release}
-      - {get: stemcell,                    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [build-ubuntu-bionic-light-stemcell]}
-      - {get: pipelines,                   trigger: false}
-      - {get: bosh-cli,                    trigger: false}
-      - {get: bats,                        trigger: false}
-      - {get: bosh-deployment,             trigger: false}
-      - {get: syslog-release,              trigger: false}
-      - {get: os-conf-release,             trigger: false}
-      - {get: bosh-linux-boinic-stemcell-builder, trigger: false}
-    - <<: *put-environment
-      params:
-        <<: *put-environment-params
-        env_name: alicloud-test-stemcell-ubuntu-bionic
-        delete_on_failure: true
-    - do:
-      - <<: *prepare-director
-        params:
-          <<: *prepare-director-params
-          OPTIONAL_OPS_FILE: |
-            -o pipelines/shared/assets/ops/remove-hm.yml
-            -o bosh-deployment/external-ip-with-registry-not-recommended.yml
-            -o pipelines/shared/assets/ops/remove-provider-cert.yml
-      - do:
-        - <<: *deploy-director
-        - <<: *update-cloud-config
-        - <<: *test-stemcell-ubuntu-bionic
-        ensure:
-          do:
-            - <<: *teardown
-      ensure:
-        do:
-          - <<: *put-environment
-            params:
-              <<: *put-environment-params
-              env_name: alicloud-test-stemcell-ubuntu-bionic
-              action: destroy
-
-- name: publish-bionic-light-stemcell
-  serial: true
-  plan:
-  - aggregate:
-#    - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell, test-ubuntu-bionic-light-stemcell]}
-    - {get: stemcell,    trigger: true,  resource: ubuntu-bionic-light-stemcell, passed: [run-upload-bionic-test, bats-ubuntu-bionic-light-stemcell]}
-    - {get: builder-src, trigger: false, resource: builder-src}
-    - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
-    - {get: stemcells-index}
-  - *publish-stemcell-and-checksum
-  - *put-stemcells-index
-###### end bionic
 
 resources:
 - name: stemcells-index
@@ -538,26 +353,10 @@ resources:
     name: bosh-alicloud-kvm-ubuntu-xenial-go_agent
     force_regular: true
 
-- name: ubuntu-bionic-stemcell
-  type: bosh-io-stemcell
-  source:
-    name: bosh-alicloud-kvm-ubuntu-bionic-go_agent
-    force_regular: true
-
 - name: ubuntu-xenial-light-stemcell
   type: s3
   source:
     regexp:            light-bosh-stemcell-(\d+\.\d+)-alicloud-kvm-ubuntu-xenial-go_agent.tgz
-    bucket:            "bosh-alicloud-light-stemcells-eu"
-    region:            "eu-central-1"
-    access_key_id:     {{alicloud_publish_light_stemcells_access_key_id}}
-    secret_access_key: {{alicloud_publish_light_stemcells_secret_access_key}}
-    endpoint:          oss-eu-central-1.aliyuncs.com
-
-- name: ubuntu-bionic-light-stemcell
-  type: s3
-  source:
-    regexp:            light-bosh-stemcell-(\d+\.\d+)-alicloud-kvm-ubuntu-bionic-go_agent.tgz
     bucket:            "bosh-alicloud-light-stemcells-eu"
     region:            "eu-central-1"
     access_key_id:     {{alicloud_publish_light_stemcells_access_key_id}}
@@ -636,12 +435,6 @@ resources:
   source:
     uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
     branch: master
-
-- name: bosh-linux-boinic-stemcell-builder
-  type: git
-  source:
-    uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
-    branch: ubuntu-bionic/master
 
 - name: syslog-release
   type: bosh-io-release
