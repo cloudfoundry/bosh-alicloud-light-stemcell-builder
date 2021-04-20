@@ -110,6 +110,7 @@ if [[ -n ${operating_system} ]]; then
   stemcell_image_name=${operating_system}
   if [[ ${operating_system} == "ubuntu-bionic" ]]; then
     os_distro="Others Linux"
+  fi
 fi
 
 cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} ${original_stemcell_name}
