@@ -123,7 +123,7 @@ aliyun ecs ImportImage \
     --access-key-secret ${image_secret_key} \
     --region ${image_region} \
     --RegionId ${image_region} \
-    --Platform $os_distro \
+    --Platform "${os_distro}" \
     --DiskDeviceMapping.1.OSSBucket ${image_bucket_name} \
     --DiskDeviceMapping.1.OSSObject ${stemcell_image_name} \
     --DiskDeviceMapping.1.DiskImageSize $disk_size_gb \
