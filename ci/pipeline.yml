@@ -605,7 +605,7 @@ resources:
 - name: bosh-deployment
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-deployment
+    uri: https://github.com/cloudfoundry/bosh-deployment
     branch: master
 - name: bosh-release
   type: bosh-io-release
