@@ -1,7 +1,3 @@
-fly -t bionic sp -p light-stemcell-alicloud \
-  -c pipeline.yml \
-  --load-vars-from=vars-pipeline.yaml
-
 fly -t xenial sp -p xenial-light-stemcell-alicloud \
   -c xenial-pipeline.yml \
   --load-vars-from=vars-pipeline.yaml

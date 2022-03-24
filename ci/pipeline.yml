@@ -584,7 +584,7 @@ resources:
 - name: pipelines
   type: git
   source:
-    uri: https://github.com/aliyun/bosh-cpi-certification
+    uri: https://github.com/cloudfoundry/bosh-cpi-certification
     branch: master
 
 - name: bosh-cpi-src-in
@@ -655,6 +655,7 @@ resource_types:
   type: docker-image
   source:
     repository: ljfranklin/terraform-resource
+    tag: latest
 - name: slack-notification
   type: docker-image
   source:
