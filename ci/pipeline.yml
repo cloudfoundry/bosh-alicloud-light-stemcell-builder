@@ -1,12 +1,12 @@
 ---
 groups:
-- name: xenial
+- name: jammy
   jobs:
-  - build-ubuntu-xenial-light-stemcell
-  - run-upload-xenial-test-2
-  - bats-ubuntu-xenial-light-stemcell-2
-  - test-ubuntu-xenial-light-stemcell-2
-  - publish-xenial-light-stemcell
+  - build-ubuntu-jammy-light-stemcell
+  - run-upload-jammy-test-2
+  - bats-ubuntu-jammy-light-stemcell-2
+  - test-ubuntu-jammy-light-stemcell-2
+  - publish-jammy-light-stemcell
 
 - name: bionic
   jobs:
@@ -162,7 +162,7 @@ shared:
   file: pipelines/shared/tasks/run-bats.yml
   params:
     INFRASTRUCTURE:     alicloud
-    STEMCELL_NAME:      bosh-alicloud-kvm-ubuntu-xenial-go_agent
+    STEMCELL_NAME:      bosh-alicloud-kvm-ubuntu-jammy-go_agent
     BAT_INFRASTRUCTURE: alicloud
     BAT_NETWORKING:     manual
     BAT_RSPEC_FLAGS:    "--tag ~multiple_manual_networks --tag ~raw_ephemeral_storage --tag ~persistent_disk"
@@ -171,16 +171,16 @@ shared:
     params:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning the task run-bats failed. Please check it."
 
-- &test-stemcell-ubuntu-xenial
-  task: test-stemcell-ubuntu-xenial
+- &test-stemcell-ubuntu-jammy
+  task: test-stemcell-ubuntu-jammy
   file: pipelines/shared/tasks/test-stemcell.yml
   params:
-    BOSH_os_name: ubuntu-xenial
+    BOSH_os_name: ubuntu-jammy
     package: ipv4director
   on_failure:
     put: notify
     params:
-      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-xenial failed. Please check it."
+      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-jammy failed. Please check it."
 
 - &run-bionic-bats
   task: run-bats
@@ -221,20 +221,20 @@ shared:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task update-cloud-config failed. Please check it."
 
 jobs:
-- name: build-ubuntu-xenial-light-stemcell
+- name: build-ubuntu-jammy-light-stemcell
   serial: true
   plan:
   - aggregate:
-    - {get: stemcell,    trigger: false, resource: ubuntu-xenial-stemcell, version: every, params: {preserve_filename: true}}
+    - {get: stemcell,    trigger: true, resource: ubuntu-jammy-stemcell, version: every, params: {preserve_filename: true}}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
   - *create-light-stemcell
 # deploy bosh director and validate the light stemcell
   - *ensure-light-stemcell-ready
-  - put: ubuntu-xenial-light-stemcell
+  - put: ubuntu-jammy-light-stemcell
     params: {file: light-stemcell/*.tgz}
 
-- name: run-upload-xenial-test-2
+- name: run-upload-jammy-test-2
   serial: true
   plan:
   - aggregate:
@@ -242,7 +242,7 @@ jobs:
     - {get: builder-src,     trigger: false, resource: builder-src}
     - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
     - {get: bosh-release,    trigger: false, resource: bosh-release}
-    - {get: stemcell,        trigger: true, resource: ubuntu-xenial-light-stemcell, passed: [build-ubuntu-xenial-light-stemcell]}
+    - {get: stemcell,        trigger: true, resource: ubuntu-jammy-light-stemcell, passed: [build-ubuntu-jammy-light-stemcell]}
     - {get: bosh-deployment, trigger: false}
     - {get: bosh-cli,        trigger: false}
     - {get: jq-blob,         trigger: false}
@@ -252,7 +252,7 @@ jobs:
     - <<: *put-environment
       params:
         <<: *put-environment-params
-        env_name: ubuntu-xenial-stemcell-upload-test
+        env_name: ubuntu-jammy-stemcell-upload-test
         delete_on_failure: true
     - *prepare-director
     - *deploy-director
@@ -265,18 +265,18 @@ jobs:
       - <<: *put-environment
         params:
           <<: *put-environment-params
-          env_name: ubuntu-xenial-stemcell-upload-test
+          env_name: ubuntu-jammy-stemcell-upload-test
           generate_random_name: true
           action: destroy
 
-- name: bats-ubuntu-xenial-light-stemcell-2
+- name: bats-ubuntu-jammy-light-stemcell-2
   serial: true
   plan:
   - aggregate:
     - {get: cpi-release,     trigger: false, resource: bosh-cpi-release}
     - {get: bosh-release,    trigger: false, resource: bosh-release}
     - {get: bosh-cpi-src,    trigger: false, resource: bosh-cpi-src-in}
-    - {get: stemcell,        trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [build-ubuntu-xenial-light-stemcell]}
+    - {get: stemcell,        trigger: true,  resource: ubuntu-jammy-light-stemcell, passed: [build-ubuntu-jammy-light-stemcell]}
     - {get: bosh-deployment, trigger: false}
     - {get: pipelines,       trigger: false}
     - {get: bosh-cli,        trigger: false}
@@ -286,7 +286,7 @@ jobs:
   - <<: *put-environment
     params:
       <<: *put-environment-params
-      env_name: ubuntu-xenial-stemcell-bats
+      env_name: ubuntu-jammy-stemcell-bats
       delete_on_failure: true
       terraform_source: bosh-cpi-src/ci/assets/terraform
   - do:
@@ -309,18 +309,18 @@ jobs:
         - <<: *put-environment
           params:
             <<: *put-environment-params
-            env_name: ubuntu-xenial-stemcell-bats
+            env_name: ubuntu-jammy-stemcell-bats
             action: destroy
             terraform_source: bosh-cpi-src/ci/assets/terraform
 
-- name: test-ubuntu-xenial-light-stemcell-2
+- name: test-ubuntu-jammy-light-stemcell-2
   serial: true
   plan:
     - aggregate:
       - {get: bosh-release,                trigger: false}
       - {get: bosh-cpi-src,                trigger: false, resource: bosh-cpi-src-in}
       - {get: cpi-release,                 trigger: false, resource: bosh-cpi-release}
-      - {get: stemcell,                    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [build-ubuntu-xenial-light-stemcell]}
+      - {get: stemcell,                    trigger: true,  resource: ubuntu-jammy-light-stemcell, passed: [build-ubuntu-jammy-light-stemcell]}
       - {get: pipelines,                   trigger: false}
       - {get: bosh-cli,                    trigger: false}
       - {get: bats,                        trigger: false}
@@ -331,7 +331,7 @@ jobs:
     - <<: *put-environment
       params:
         <<: *put-environment-params
-        env_name: alicloud-test-stemcell-ubuntu-xenial
+        env_name: alicloud-test-stemcell-ubuntu-jammy
         delete_on_failure: true
     - do:
       - <<: *prepare-director
@@ -344,7 +344,7 @@ jobs:
       - do:
         - <<: *deploy-director
         - <<: *update-cloud-config
-        - <<: *test-stemcell-ubuntu-xenial
+        - <<: *test-stemcell-ubuntu-jammy
         ensure:
           do:
             - <<: *teardown
@@ -353,15 +353,15 @@ jobs:
           - <<: *put-environment
             params:
               <<: *put-environment-params
-              env_name: alicloud-test-stemcell-ubuntu-xenial
+              env_name: alicloud-test-stemcell-ubuntu-jammy
               action: destroy
 
-- name: publish-xenial-light-stemcell
+- name: publish-jammy-light-stemcell
   serial: true
   plan:
   - aggregate:
-#    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-test, bats-ubuntu-xenial-light-stemcell-2, test-ubuntu-xenial-light-stemcell-2]}
-    - {get: stemcell,    trigger: true,  resource: ubuntu-xenial-light-stemcell, passed: [run-upload-xenial-test-2, bats-ubuntu-xenial-light-stemcell-2]}
+#    - {get: stemcell,    trigger: true,  resource: ubuntu-jammy-light-stemcell, passed: [run-upload-test, bats-ubuntu-jammy-light-stemcell-2, test-ubuntu-jammy-light-stemcell-2]}
+    - {get: stemcell,    trigger: true,  resource: ubuntu-jammy-light-stemcell, passed: [run-upload-jammy-test-2, bats-ubuntu-jammy-light-stemcell-2]}
     - {get: builder-src, trigger: false, resource: builder-src}
     - {get: aliyun-cli,  trigger: false, resource: aliyun-cli}
     - {get: stemcells-index}
@@ -532,10 +532,10 @@ resources:
     uri: https://github.com/cloudfoundry-incubator/bosh-alicloud-light-stemcell-builder
     branch: master
 
-- name: ubuntu-xenial-stemcell
+- name: ubuntu-jammy-stemcell
   type: bosh-io-stemcell
   source:
-    name: bosh-alicloud-kvm-ubuntu-xenial-go_agent
+    name: bosh-alicloud-kvm-ubuntu-jammy-go_agent
     force_regular: true
 
 - name: ubuntu-bionic-stemcell
@@ -544,10 +544,10 @@ resources:
     name: bosh-alicloud-kvm-ubuntu-bionic-go_agent
     force_regular: true
 
-- name: ubuntu-xenial-light-stemcell
+- name: ubuntu-jammy-light-stemcell
   type: s3
   source:
-    regexp:            light-bosh-stemcell-(\d+\.\d+)-alicloud-kvm-ubuntu-xenial-go_agent.tgz
+    regexp:            light-bosh-stemcell-(\d+\.\d+\.\d+)-alicloud-kvm-ubuntu-jammy-go_agent.tgz
     bucket:            "bosh-alicloud-light-stemcells-eu"
     region:            "eu-central-1"
     access_key_id:     {{alicloud_publish_light_stemcells_access_key_id}}
