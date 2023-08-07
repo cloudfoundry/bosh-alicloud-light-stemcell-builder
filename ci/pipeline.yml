@@ -401,6 +401,7 @@ jobs:
       - get: aliyun-cli
         resource: aliyun-cli
       - get: stemcells-index
+      - get: bosh-cli
   - *publish-stemcell-and-checksum
   - *put-stemcells-index
 
@@ -588,6 +589,7 @@ jobs:
         - get: aliyun-cli
           resource: aliyun-cli
         - get: stemcells-index
+        - get: bosh-cli
     - *publish-stemcell-and-checksum
     - *put-stemcells-index
 ##### stop bionic
