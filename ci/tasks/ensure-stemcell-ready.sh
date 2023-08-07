@@ -42,14 +42,23 @@ do
                 --Status Waiting,Creating,Available
                 )"
         imageId=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].ImageId')
-        isShared=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].IsSelfShared')
-        if [[ ${isShared} = "True" ]]; then
-            echo "[$regionId Success] The image $imageId has been shared."
+        IsPublic=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].IsPublic')
+        if [[ ${IsPublic} = "True" ]]; then
+            echo "[$regionId Success] The image $imageId has been published."
             success=true
         else
             success=false
             sleep 10
-            echo -e "[$regionId Failed] The image $imageId has not been shared. Continue......"
+            echo -e "[$regionId Failed] The image $imageId has not been published. Publishing it......"
+            ModifyImageSharePermissionResponse="$(aliyun ecs ModifyImageSharePermission \
+                --access-key-id ${image_access_key}  \
+                --access-key-secret ${image_secret_key} \
+                --region ${regionId} \
+                --RegionId ${regionId} \
+                --ImageId ${imageId} \
+                --IsPublic true
+                )"
+            echo -e "Publishing image ${imageId} response: ${ModifyImageSharePermissionResponse}"
             break
         fi
     done

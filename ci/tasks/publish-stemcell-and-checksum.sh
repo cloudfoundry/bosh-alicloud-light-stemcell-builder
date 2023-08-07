@@ -12,7 +12,17 @@ set -eu
 my_dir="$( cd $(dirname $0) && pwd )"
 release_dir="$( cd ${my_dir} && cd ../.. && pwd )"
 
+go version
 source ${release_dir}/ci/tasks/utils.sh
+ls bosh-cli
+ls ${release_dir}
+ls $(pwd)
+#chmod +x bosh-cli/bosh-cli-*
+cp bosh-cli/bosh-cli-* /usr/bin/bosh
+#alias bosh='bosh-cli/bosh-*'
+chmod +x /usr/bin/bosh
+
+go version
 
 success_message=${PWD}/notification/success
 failed_message=${PWD}/notification/failed
