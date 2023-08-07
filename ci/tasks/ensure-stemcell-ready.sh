@@ -27,7 +27,7 @@ saved_image_destinations="$(echo $(aliyun ecs DescribeRegions \
 stemcell_path=${PWD}/input-stemcell/*.tgz
 original_stemcell_name="$(basename ${stemcell_path})"
 
-echo -e "Checking image ${original_stemcell_name} is shared..."
+echo -e "Checking image ${original_stemcell_name} is public..."
 success=false
 while [[ ${success} = false ]]
 do
@@ -43,7 +43,7 @@ do
                 )"
         imageId=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].ImageId')
         IsPublic=$(echo ${DescribeImagesResponse} | jq -r '.Images.Image[0].IsPublic')
-        if [[ ${IsPublic} = "True" ]]; then
+        if [[ ${IsPublic} = "true" ]]; then
             echo "[$regionId Success] The image $imageId has been published."
             success=true
         else
