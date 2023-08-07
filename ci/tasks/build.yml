@@ -3,6 +3,10 @@ platform: linux
 image_resource:
   type: docker-image
   source: {repository: boshcpi/light-stemcell-builder}
+#  type: registry-image
+#  source: { repository: golang, tag: 1.19.2 }
+#  type: docker-image
+#  source: {repository: boshcpi/light-stemcell-builder}
 
 inputs:
   - name: builder-src
