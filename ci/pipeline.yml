@@ -1,5 +1,14 @@
 ---
 groups:
+
+- name: noble
+  jobs:
+  - build-ubuntu-noble-light-stemcell
+  - run-upload-noble-test
+  - bats-ubuntu-noble-light-stemcell
+  - test-ubuntu-noble-light-stemcell
+  - publish-noble-light-stemcell
+
 - name: jammy
   jobs:
   - build-ubuntu-jammy-light-stemcell
@@ -171,6 +180,18 @@ shared:
     params:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning the task run-bats failed. Please check it."
 
+- &test-stemcell-ubuntu-noble
+  task: test-stemcell-ubuntu-noble
+  file: pipelines/shared/tasks/test-stemcell.yml
+  params:
+    BOSH_os_name: ubuntu-noble
+    package: ipv4director
+  on_failure:
+    put: notify
+    params:
+      text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task test-stemcell-ubuntu-noble failed. Please check it."
+
+
 - &test-stemcell-ubuntu-jammy
   task: test-stemcell-ubuntu-jammy
   file: pipelines/shared/tasks/test-stemcell.yml
@@ -219,6 +240,193 @@ shared:
       text: "[bosh-alicloud-light-stemcell-builder Failed]\nRunning task update-cloud-config failed. Please check it."
 
 jobs:
+- name: build-ubuntu-noble-light-stemcell
+  serial: true
+  plan:
+    - in_parallel:
+        - get: stemcell
+          trigger: true
+          resource: ubuntu-noble-stemcell
+          version: every
+          params:
+            preserve_filename: true
+        - get: builder-src
+          trigger: false
+          resource: builder-src
+        - get: aliyun-cli
+          trigger: false
+          resource: aliyun-cli
+    - *create-light-stemcell
+    # deploy bosh director and validate the light stemcell
+    - *ensure-light-stemcell-ready
+    - put: ubuntu-noble-light-stemcell
+      params: {file: light-stemcell/*.tgz}
+
+- name: run-upload-noble-test
+  serial: true
+  plan:
+    - in_parallel:
+        - get: bosh-cpi-src
+          trigger: false
+          resource: bosh-cpi-src-in
+        - get: builder-src
+          trigger: false
+          resource: builder-src
+        - get: cpi-release
+          resource: bosh-cpi-release
+        - get: bosh-release
+          resource: bosh-release
+        - get: stemcell
+          trigger: true
+          resource: ubuntu-noble-light-stemcell
+          passed: [build-ubuntu-noble-light-stemcell]
+        - get: bosh-deployment
+        - get: bosh-cli
+        - get: jq-blob
+        - get: pipelines
+        - get: aliyun-cli
+          resource: aliyun-cli
+    - do:
+        - <<: *put-environment
+          params:
+            <<: *put-environment-params
+            env_name: ubuntu-noble-stemcell-upload-test
+            delete_on_failure: true
+        - *prepare-director
+        - *deploy-director
+        #    run bosh upload-stemcells xxx
+        - *run-upload-test
+      ensure:
+        do:
+          #      - *teardown
+          - *ensure-terminated
+          - <<: *put-environment
+            params:
+              <<: *put-environment-params
+              env_name: ubuntu-noble-stemcell-upload-test
+              generate_random_name: true
+              action: destroy
+
+- name: bats-ubuntu-noble-light-stemcell
+  #  serial: true
+  plan:
+    - in_parallel:
+        - get: cpi-release
+          trigger: false
+          resource: bosh-cpi-release
+        - get: bosh-release
+          resource: bosh-release
+        - get: bosh-cpi-src
+          resource: bosh-cpi-src-in
+        - get: stemcell
+          trigger: true
+          resource: ubuntu-noble-light-stemcell
+          passed: [build-ubuntu-noble-light-stemcell]
+        - get: bosh-deployment
+        - get: pipelines
+        - get: bosh-cli
+        - get: bats
+        - get: jq-blob
+        - get: aliyun-cli
+          resource: aliyun-cli
+    - <<: *put-environment
+      params:
+        <<: *put-environment-params
+        env_name: ubuntu-noble-stemcell-bats
+        delete_on_failure: true
+        terraform_source: bosh-cpi-src/ci/assets/terraform
+    - do:
+        - <<: *prepare-director
+          params:
+            <<: *prepare-director-params
+            OPTIONAL_OPS_FILE:  |
+              -o pipelines/shared/assets/ops/remove-hm.yml
+              -o bosh-deployment/external-ip-with-registry-not-recommended.yml
+              -o pipelines/shared/assets/ops/remove-provider-cert.yml
+        - do:
+            - <<: *deploy-director
+            - <<: *run-bats
+          ensure:
+            do:
+              - <<: *teardown
+              - <<: *ensure-terminated
+      ensure:
+        do:
+          - <<: *put-environment
+            params:
+              <<: *put-environment-params
+              env_name: ubuntu-noble-stemcell-bats
+              action: destroy
+              terraform_source: bosh-cpi-src/ci/assets/terraform
+
+- name: test-ubuntu-noble-light-stemcell
+  #  serial: true
+  plan:
+    - in_parallel:
+        - get: bosh-release
+        - get: bosh-cpi-src
+          resource: bosh-cpi-src-in
+        - get: cpi-release
+          resource: bosh-cpi-release
+        - get: stemcell
+          trigger: true
+          resource: ubuntu-noble-light-stemcell
+          passed: [build-ubuntu-noble-light-stemcell]
+        - get: pipelines
+        - get: bosh-cli
+        - get: bats
+        - get: bosh-deployment
+        - get: syslog-release
+        - get: os-conf-release
+        - get: bosh-linux-stemcell-builder-noble
+    - <<: *put-environment
+      params:
+        <<: *put-environment-params
+        env_name: alicloud-test-stemcell-ubuntu-noble
+        delete_on_failure: true
+    - do:
+        - <<: *prepare-director
+          params:
+            <<: *prepare-director-params
+            OPTIONAL_OPS_FILE: |
+              -o pipelines/shared/assets/ops/remove-hm.yml
+              -o bosh-deployment/external-ip-with-registry-not-recommended.yml
+              -o pipelines/shared/assets/ops/remove-provider-cert.yml
+        - do:
+            - <<: *deploy-director
+            - <<: *update-cloud-config
+            - <<: *test-stemcell-ubuntu-noble
+          ensure:
+            do:
+              - <<: *teardown
+      ensure:
+        do:
+          - <<: *put-environment
+            params:
+              <<: *put-environment-params
+              env_name: alicloud-test-stemcell-ubuntu-noble
+              action: destroy
+
+- name: publish-noble-light-stemcell
+  #  serial: true
+  plan:
+    - in_parallel:
+        #    - {get: stemcell,    trigger: true,  resource: ubuntu-noble-light-stemcell, passed: [run-upload-test, bats-ubuntu-noble-light-stemcell, test-ubuntu-noble-light-stemcell]}
+        - get: stemcell
+          trigger: true
+          resource: ubuntu-noble-light-stemcell
+          #        passed: [run-upload-noble-test, bats-ubuntu-noble-light-stemcell]
+          passed: [build-ubuntu-noble-light-stemcell]
+        - get: builder-src
+          resource: builder-src
+        - get: aliyun-cli
+          resource: aliyun-cli
+        - get: stemcells-index
+        - get: bosh-cli
+    - *publish-stemcell-and-checksum
+    - *put-stemcells-index
+
+## start jammy
 - name: build-ubuntu-jammy-light-stemcell
   serial: true
   plan:
@@ -597,8 +805,8 @@ resources:
 - name: stemcells-index
   type: git
   source:
-    uri: git@github.com:cloudfoundry-incubator/stemcells-alicloud-index.git
-    branch: master
+    uri: git@github.com:cloudfoundry/stemcells-alicloud-index.git
+    branch: publish
     private_key: ((stemcells_index__github_key))
 
 - name: builder-src
@@ -606,6 +814,23 @@ resources:
   source:
     uri: https://github.com/cloudfoundry-incubator/bosh-alicloud-light-stemcell-builder
     branch: master
+
+- name: ubuntu-noble-stemcell
+  type: bosh-io-stemcell
+  source:
+    name: bosh-alicloud-kvm-ubuntu-noble
+    force_regular: true
+
+- name: ubuntu-noble-light-stemcell
+  type: s3
+  source:
+    regexp:            light-bosh-stemcell-(\d+\.\d+)-alicloud-kvm-ubuntu-noble.tgz
+    bucket:            "bosh-alicloud-light-stemcells-eu"
+    region:            "eu-central-1"
+    access_key_id:     ((alicloud_publish_light_stemcells_access_key_id))
+    secret_access_key: ((alicloud_publish_light_stemcells_secret_access_key))
+    endpoint:          oss-eu-central-1.aliyuncs.com
+
 
 - name: ubuntu-jammy-stemcell
   type: bosh-io-stemcell
@@ -708,6 +933,12 @@ resources:
   type: slack-notification
   source:
     url: ((slack-webhook))
+
+- name: bosh-linux-stemcell-builder-noble
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh-linux-stemcell-builder
+    branch: ubuntu-noble/master
 
 - name: bosh-linux-stemcell-builder
   type: git
