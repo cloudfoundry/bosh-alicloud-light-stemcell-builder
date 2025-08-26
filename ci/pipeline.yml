@@ -806,6 +806,8 @@ resources:
   type: git
   source:
     uri: git@github.com:cloudfoundry/stemcells-alicloud-index.git
+    # master branch has been protected and cannot be pushed to it directly,
+    # and using a branch instead. After that, there needs a new pull-request to merge the latest index to master.
     branch: publish
     private_key: ((stemcells_index__github_key))
 
