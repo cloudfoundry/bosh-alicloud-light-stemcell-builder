@@ -113,64 +113,99 @@ if [[ -n ${operating_system} ]]; then
   fi
 fi
 
-cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} ${original_stemcell_name}
-
-echo -e "Uploading raw image ${stemcell_image_name} to ${image_region} bucket ${image_bucket_name}..."
-aliyun oss cp ${stemcell_image} oss://${image_bucket_name}/${stemcell_image_name} -f --access-key-id ${image_access_key} --access-key-secret ${image_secret_key} --region ${image_region}
-
-aliyun ecs ImportImage \
+# An image for this exact stemcell may already be in the base region, either
+# because a previous run of this job got that far or because the image was
+# published and shared before the light stemcell tarball was. Re-importing it
+# would mean uploading several GB again for a bit-identical result, and deleting
+# it first is not even allowed once it has been made public -- DeleteImage
+# answers ImageIsPublic, which used to end the build here. Reuse it instead.
+existing_base_image_id="$(aliyun ecs DescribeImages \
     --access-key-id ${image_access_key} \
     --access-key-secret ${image_secret_key} \
     --region ${image_region} \
     --RegionId ${image_region} \
-    --Platform "${os_distro}" \
-    --DiskDeviceMapping.1.OSSBucket ${image_bucket_name} \
-    --DiskDeviceMapping.1.OSSObject ${stemcell_image_name} \
-    --DiskDeviceMapping.1.DiskImageSize $disk_size_gb \
-    --DiskDeviceMapping.1.Format $disk_format \
-    --Architecture $architecture \
-    --ImageName $original_stemcell_name \
-    --Description "${image_description}"
+    --ImageName ${original_stemcell_name} \
+    --Status Available \
+    --ImageOwnerAlias self \
+    | jq -r '.Images.Image[0].ImageId // empty')"
 
-sleep 5
+if [[ -n "${existing_base_image_id}" ]]; then
+  echo -e "Reusing the image already present in ${image_region}: ${existing_base_image_id}"
+  base_image_id="${existing_base_image_id}"
 
-DescribeImagesResponse="$(aliyun ecs DescribeImages \
-    --access-key-id ${image_access_key} \
-    --access-key-secret ${image_secret_key} \
-    --region ${image_region} \
-    --RegionId ${image_region} \
-    --ImageName $original_stemcell_name \
-    --Status Waiting,Creating
-    )"
+  # The feature is what lets 8th/9th-gen instances see their disks, and an image
+  # imported before that flag was passed would silently produce VMs that cannot
+  # boot. Setting it is idempotent, so it is applied to the reused image too.
+  aliyun ecs ModifyImageAttribute \
+      --access-key-id ${image_access_key} \
+      --access-key-secret ${image_secret_key} \
+      --region ${image_region} \
+      --RegionId ${image_region} \
+      --ImageId ${base_image_id} \
+      --Features.NvmeSupport supported \
+      --force
+else
+  cleanup_previous_image ${image_access_key} ${image_secret_key} ${image_region} ${original_stemcell_name}
 
-echo -e "DescribeImages $original_stemcell_name Response: $DescribeImagesResponse"
-base_image_id="$( echo $DescribeImagesResponse | jq -r '.Images.Image[0].ImageId' )"
-echo -e "ImportImage in the base region $image_region successfully and the base image id is $base_image_id."
+  echo -e "Uploading raw image ${stemcell_image_name} to ${image_region} bucket ${image_bucket_name}..."
+  aliyun oss cp ${stemcell_image} oss://${image_bucket_name}/${stemcell_image_name} -f --access-key-id ${image_access_key} --access-key-secret ${image_secret_key} --region ${image_region}
 
-echo -e "Waiting for image $base_image_id is Available..."
-# Before polling, delay 4 min
-sleep 240
-timeout=1800
-while [ $timeout -gt 0 ]
-do
-    DescribeImagesResponse="$(aliyun ecs DescribeImages \
-            --access-key-id ${image_access_key}  \
-            --access-key-secret ${image_secret_key} \
-            --region ${image_region} \
-            --RegionId ${image_region} \
-            --ImageId $base_image_id \
-            --Status Available
-            )"
-    if [[ `echo $DescribeImagesResponse | jq -r '.TotalCount'` != "1" ]]; then
-        sleep 5
-        timeout=$((${timeout}-5))
-    else
-        break
-    fi
-done
+  aliyun ecs ImportImage \
+      --access-key-id ${image_access_key} \
+      --access-key-secret ${image_secret_key} \
+      --region ${image_region} \
+      --RegionId ${image_region} \
+      --Platform "${os_distro}" \
+      --DiskDeviceMapping.1.OSSBucket ${image_bucket_name} \
+      --DiskDeviceMapping.1.OSSObject ${stemcell_image_name} \
+      --DiskDeviceMapping.1.DiskImageSize $disk_size_gb \
+      --DiskDeviceMapping.1.Format $disk_format \
+      --Architecture $architecture \
+      --ImageName $original_stemcell_name \
+      --Description "${image_description}" \
+      --Features.NvmeSupport supported \
+      --force
 
-# Remove the raw image
-aliyun oss rm oss://${image_bucket_name}/root.img --region ${image_region} --access-key-id ${image_access_key}  --access-key-secret ${image_secret_key}
+  sleep 5
+
+  DescribeImagesResponse="$(aliyun ecs DescribeImages \
+      --access-key-id ${image_access_key} \
+      --access-key-secret ${image_secret_key} \
+      --region ${image_region} \
+      --RegionId ${image_region} \
+      --ImageName $original_stemcell_name \
+      --Status Waiting,Creating
+      )"
+
+  echo -e "DescribeImages $original_stemcell_name Response: $DescribeImagesResponse"
+  base_image_id="$( echo $DescribeImagesResponse | jq -r '.Images.Image[0].ImageId' )"
+  echo -e "ImportImage in the base region $image_region successfully and the base image id is $base_image_id."
+
+  echo -e "Waiting for image $base_image_id is Available..."
+  # Before polling, delay 4 min
+  sleep 240
+  timeout=1800
+  while [ $timeout -gt 0 ]
+  do
+      DescribeImagesResponse="$(aliyun ecs DescribeImages \
+              --access-key-id ${image_access_key}  \
+              --access-key-secret ${image_secret_key} \
+              --region ${image_region} \
+              --RegionId ${image_region} \
+              --ImageId $base_image_id \
+              --Status Available
+              )"
+      if [[ `echo $DescribeImagesResponse | jq -r '.TotalCount'` != "1" ]]; then
+          sleep 5
+          timeout=$((${timeout}-5))
+      else
+          break
+      fi
+  done
+
+  # Remove the raw image
+  aliyun oss rm oss://${image_bucket_name}/root.img --region ${image_region} --access-key-id ${image_access_key}  --access-key-secret ${image_secret_key}
+fi
 
 echo -e "An image $base_image_id has been created in ${image_region} successfully and then start to copy it to otheres regions:\n${image_destinations}."
 
@@ -184,23 +219,40 @@ do
     if [[ $regionId == ${image_region} ]]; then
         image_id=$base_image_id
     else
-
-        cleanup_previous_image ${image_access_key} ${image_secret_key} ${regionId} ${original_stemcell_name}
-
-        CopyImageResponse="$(aliyun ecs CopyImage \
-            --access-key-id ${image_access_key}  \
+        # Same reasoning as the base region: a copy that is already there is
+        # bit-identical to one made now, and cannot be deleted first once it has
+        # been shared publicly.
+        existing_region_image_id="$(aliyun ecs DescribeImages \
+            --access-key-id ${image_access_key} \
             --access-key-secret ${image_secret_key} \
-            --region ${image_region} \
-            --RegionId ${image_region} \
-            --ImageId $base_image_id \
-            --DestinationRegionId $regionId \
-            --DestinationImageName $original_stemcell_name \
-            --DestinationDescription "${image_description}" \
-            --Tag.1.Key CopyFrom \
-            --Tag.1.Value $base_image_id
-            )"
-        echo -e "CopyImage to $regionId Response: $CopyImageResponse"
-        image_id="$(echo $CopyImageResponse | jq -r '.ImageId' )"
+            --region ${regionId} \
+            --RegionId ${regionId} \
+            --ImageName ${original_stemcell_name} \
+            --Status Available \
+            --ImageOwnerAlias self \
+            | jq -r '.Images.Image[0].ImageId // empty')"
+
+        if [[ -n "${existing_region_image_id}" ]]; then
+            echo -e "Reusing the image already present in ${regionId}: ${existing_region_image_id}"
+            image_id="${existing_region_image_id}"
+        else
+            cleanup_previous_image ${image_access_key} ${image_secret_key} ${regionId} ${original_stemcell_name}
+
+            CopyImageResponse="$(aliyun ecs CopyImage \
+                --access-key-id ${image_access_key}  \
+                --access-key-secret ${image_secret_key} \
+                --region ${image_region} \
+                --RegionId ${image_region} \
+                --ImageId $base_image_id \
+                --DestinationRegionId $regionId \
+                --DestinationImageName $original_stemcell_name \
+                --DestinationDescription "${image_description}" \
+                --Tag.1.Key CopyFrom \
+                --Tag.1.Value $base_image_id
+                )"
+            echo -e "CopyImage to $regionId Response: $CopyImageResponse"
+            image_id="$(echo $CopyImageResponse | jq -r '.ImageId' )"
+        fi
     fi
     echo "    $regionId: $image_id" >> ${stemcell_manifest}
     imageIds+=("\"$image_id\"")
@@ -232,6 +284,28 @@ do
             break
         fi
     done
+done
+
+echo -e "Ensuring NvmeSupport attribute is set on all region images..."
+for regionId in ${image_destinations[*]}
+do
+    region_image_id="$(aliyun ecs DescribeImages \
+        --access-key-id ${image_access_key} \
+        --access-key-secret ${image_secret_key} \
+        --region ${regionId} \
+        --RegionId ${regionId} \
+        --ImageName ${original_stemcell_name} \
+        --Status Available \
+        | jq -r '.Images.Image[0].ImageId')"
+    aliyun ecs ModifyImageAttribute \
+        --access-key-id ${image_access_key} \
+        --access-key-secret ${image_secret_key} \
+        --region ${regionId} \
+        --RegionId ${regionId} \
+        --ImageId ${region_image_id} \
+        --Features.NvmeSupport supported \
+        --force
+    echo "[$regionId] Set NvmeSupport=supported on image ${region_image_id}"
 done
 
 ( IFS=$',\n'; echo "${imageIds[*]}" ) >> ${success_message}
