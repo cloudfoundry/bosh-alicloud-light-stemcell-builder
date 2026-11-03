@@ -926,7 +926,6 @@ resources:
   type: git
   source:
     uri: https://github.com/cloudfoundry/bosh-cpi-certification
-    branch: master
 
 - name: bosh-cpi-src-in
   type: git
